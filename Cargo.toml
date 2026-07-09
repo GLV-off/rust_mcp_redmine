@@ -1,0 +1,12 @@
+[workspace]
+members = [
+    "crates/redmine-types",
+    "crates/redmine-core",
+    "crates/redmine-mcp",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
