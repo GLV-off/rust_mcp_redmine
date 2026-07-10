@@ -43,6 +43,8 @@ fn issue_response(id: u64, subject: &str) -> serde_json::Value {
     })
 }
 
+// ── Issues ──
+
 #[tokio::test]
 async fn test_list_issues() {
     let (mock, client) = setup_mock().await;
@@ -88,6 +90,26 @@ async fn test_list_issues_with_filters() {
 }
 
 #[tokio::test]
+async fn test_list_issues_empty() {
+    let (mock, client) = setup_mock().await;
+
+    Mock::given(method("GET"))
+        .and(path("/issues.json"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "issues": [],
+            "total_count": 0,
+            "offset": 0,
+            "limit": 25
+        })))
+        .mount(&mock)
+        .await;
+
+    let body = client.list_issues(None, None, None, None, 25, 0).await.unwrap();
+    assert!(body.contains("\"total_count\": 0"));
+    assert!(body.contains("\"issues\": []") || body.contains("\"issues\":[]"));
+}
+
+#[tokio::test]
 async fn test_get_issue() {
     let (mock, client) = setup_mock().await;
 
@@ -124,6 +146,49 @@ async fn test_create_issue() {
 }
 
 #[tokio::test]
+async fn test_create_issue_minimal() {
+    let (mock, client) = setup_mock().await;
+
+    Mock::given(method("POST"))
+        .and(path("/issues.json"))
+        .and(header("content-type", "application/json"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "issue": issue_response(20, "Minimal")
+        })))
+        .mount(&mock)
+        .await;
+
+    let body = client
+        .create_issue(1, "Minimal", None, None, None, None, None, None, None)
+        .await
+        .unwrap();
+    assert!(body.contains("Minimal"));
+}
+
+#[tokio::test]
+async fn test_create_issue_full() {
+    let (mock, client) = setup_mock().await;
+
+    Mock::given(method("POST"))
+        .and(path("/issues.json"))
+        .and(header("content-type", "application/json"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "issue": issue_response(30, "Full Issue")
+        })))
+        .mount(&mock)
+        .await;
+
+    let body = client
+        .create_issue(
+            1, "Full Issue", Some("Full description"),
+            Some(2), Some(3), Some(4), Some(5), Some(6), Some(8.5),
+        )
+        .await
+        .unwrap();
+    assert!(body.contains("Full Issue"));
+}
+
+#[tokio::test]
 async fn test_update_issue() {
     let (mock, client) = setup_mock().await;
 
@@ -134,7 +199,35 @@ async fn test_update_issue() {
         .await;
 
     let result = client
-        .update_issue(1, Some("Updated"), None, None, None, None, None, Some("note"))
+        .update_issue(1, None, None, Some("Updated"), None, None, None, None, None, None, Some("note"))
+        .await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_update_issue_full() {
+    let (mock, client) = setup_mock().await;
+
+    Mock::given(method("PUT"))
+        .and(path("/issues/1.json"))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&mock)
+        .await;
+
+    let result = client
+        .update_issue(
+            1,
+            Some(1),          // project_id
+            Some(2),          // tracker_id
+            Some("Updated"),  // subject
+            Some("New desc"), // description
+            Some(3),          // status_id
+            Some(4),          // priority_id
+            Some(5),          // assigned_to_id
+            Some(6),          // parent_issue_id
+            Some(2.5),        // estimated_hours
+            Some("note"),     // notes
+        )
         .await;
     assert!(result.is_ok());
 }
@@ -152,6 +245,8 @@ async fn test_delete_issue() {
     let result = client.delete_issue(99).await;
     assert!(result.is_ok());
 }
+
+// ── Projects ──
 
 fn project_response(id: u64, name: &str) -> serde_json::Value {
     json!({
@@ -186,6 +281,25 @@ async fn test_list_projects() {
 }
 
 #[tokio::test]
+async fn test_list_projects_empty() {
+    let (mock, client) = setup_mock().await;
+
+    Mock::given(method("GET"))
+        .and(path("/projects.json"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "projects": [],
+            "total_count": 0,
+            "offset": 0,
+            "limit": 25
+        })))
+        .mount(&mock)
+        .await;
+
+    let result = client.list_projects(25, 0).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
 async fn test_get_project() {
     let (mock, client) = setup_mock().await;
 
@@ -201,6 +315,8 @@ async fn test_get_project() {
     assert!(result.is_ok());
     assert!(result.unwrap().contains("Gamma"));
 }
+
+// ── Users ──
 
 fn user_response(id: u64, login: &str) -> serde_json::Value {
     json!({
@@ -238,6 +354,25 @@ async fn test_list_users() {
 }
 
 #[tokio::test]
+async fn test_list_users_empty() {
+    let (mock, client) = setup_mock().await;
+
+    Mock::given(method("GET"))
+        .and(path("/users.json"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "users": [],
+            "total_count": 0,
+            "offset": 0,
+            "limit": 25
+        })))
+        .mount(&mock)
+        .await;
+
+    let result = client.list_users(25, 0).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
 async fn test_get_user() {
     let (mock, client) = setup_mock().await;
 
@@ -253,6 +388,8 @@ async fn test_get_user() {
     assert!(result.is_ok());
     assert!(result.unwrap().contains("charlie"));
 }
+
+// ── Time Entries ──
 
 fn time_entry_response(id: u64, hours: f64) -> serde_json::Value {
     json!({
@@ -285,6 +422,27 @@ async fn test_list_time_entries() {
         .await;
 
     let result = client.list_time_entries(None, None, 25, 0).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_list_time_entries_with_filters() {
+    let (mock, client) = setup_mock().await;
+
+    Mock::given(method("GET"))
+        .and(path("/time_entries.json"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "time_entries": [time_entry_response(1, 2.5)],
+            "total_count": 1,
+            "offset": 0,
+            "limit": 25
+        })))
+        .mount(&mock)
+        .await;
+
+    let result = client
+        .list_time_entries(Some("my-project".into()), Some("2024-01-15".into()), 25, 0)
+        .await;
     assert!(result.is_ok());
 }
 
@@ -325,6 +483,8 @@ async fn test_create_time_entry_minimal() {
     assert!(result.is_ok());
 }
 
+// ── Auth & Error Handling ──
+
 #[tokio::test]
 async fn test_auth_header_sent() {
     let (mock, client) = setup_mock().await;
@@ -346,7 +506,7 @@ async fn test_auth_header_sent() {
 }
 
 #[tokio::test]
-async fn test_error_response() {
+async fn test_error_404() {
     let (mock, client) = setup_mock().await;
 
     Mock::given(method("GET"))
@@ -357,4 +517,105 @@ async fn test_error_response() {
 
     let result = client.get_issue(999).await;
     assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_error_401_unauthorized() {
+    let (mock, client) = setup_mock().await;
+
+    Mock::given(method("GET"))
+        .and(path("/issues.json"))
+        .respond_with(ResponseTemplate::new(401))
+        .mount(&mock)
+        .await;
+
+    let result = client.list_issues(None, None, None, None, 25, 0).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_error_403_forbidden() {
+    let (mock, client) = setup_mock().await;
+
+    Mock::given(method("GET"))
+        .and(path("/issues/1.json"))
+        .respond_with(ResponseTemplate::new(403))
+        .mount(&mock)
+        .await;
+
+    let result = client.get_issue(1).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_error_500_server_error() {
+    let (mock, client) = setup_mock().await;
+
+    Mock::given(method("GET"))
+        .and(path("/projects.json"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&mock)
+        .await;
+
+    let result = client.list_projects(25, 0).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_error_create_issue_validation() {
+    let (mock, client) = setup_mock().await;
+
+    Mock::given(method("POST"))
+        .and(path("/issues.json"))
+        .respond_with(ResponseTemplate::new(422).set_body_json(json!({
+            "errors": ["Subject cannot be blank"]
+        })))
+        .mount(&mock)
+        .await;
+
+    let result = client
+        .create_issue(1, "", None, None, None, None, None, None, None)
+        .await;
+    assert!(result.is_err());
+}
+
+// ── Pagination ──
+
+#[tokio::test]
+async fn test_list_issues_pagination() {
+    let (mock, client) = setup_mock().await;
+
+    Mock::given(method("GET"))
+        .and(path("/issues.json"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "issues": [issue_response(1, "First Page")],
+            "total_count": 3,
+            "offset": 0,
+            "limit": 1
+        })))
+        .mount(&mock)
+        .await;
+
+    let body = client.list_issues(None, None, None, None, 1, 0).await.unwrap();
+    assert!(body.contains("First Page"));
+    assert!(body.contains("\"total_count\": 3"));
+}
+
+#[tokio::test]
+async fn test_list_issues_offset() {
+    let (mock, client) = setup_mock().await;
+
+    Mock::given(method("GET"))
+        .and(path("/issues.json"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "issues": [issue_response(2, "Second Page")],
+            "total_count": 3,
+            "offset": 1,
+            "limit": 1
+        })))
+        .mount(&mock)
+        .await;
+
+    let body = client.list_issues(None, None, None, None, 1, 1).await.unwrap();
+    assert!(body.contains("Second Page"));
 }

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "command": {
+    "build": {
+      "description": "Собрать весь workspace",
+      "template": "cargo build"
+    },
+    "test": {
+      "description": "Запустить все тесты",
+      "template": "cargo test"
+    },
+    "lint": {
+      "description": "Проверить код через clippy",
+      "template": "cargo clippy --all-targets -- -D warnings"
+    },
+    "run": {
+      "description": "Запустить MCP сервер Redmine",
+      "template": "cargo run -p redmine-mcp"
+    }
+  }
+}

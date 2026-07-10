@@ -93,6 +93,7 @@ impl From<redmine_api::api::time_entries::CreateTimeEntryBuilderError> for CoreE
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::error::Error;
 
     #[test]
     fn test_core_error_display() {
@@ -101,6 +102,15 @@ mod tests {
 
         let err = CoreError::Builder("build failed".into());
         assert_eq!(err.to_string(), "Builder error: build failed");
+
+        let err = CoreError::RedmineApi(redmine_api::Error::HttpErrorResponse(reqwest::StatusCode::NOT_FOUND));
+        assert!(err.to_string().contains("Redmine API error"));
+
+        // Create a TimeParse error using a real parse failure
+        let parse_result = time::Date::parse("2024-13-01", &time::macros::format_description!("[year]-[month]-[day]"));
+        assert!(parse_result.is_err());
+        let err = CoreError::TimeParse("2024-13-01".into(), parse_result.unwrap_err());
+        assert!(err.to_string().contains("Time parse error"));
     }
 
     #[test]
@@ -118,5 +128,32 @@ mod tests {
         let url_err = url::Url::parse("not a url").unwrap_err();
         let converted: CoreError = url_err.into();
         assert!(matches!(converted, CoreError::Url(_)));
+    }
+
+    #[test]
+    fn test_builder_error_conversion() {
+        // Test that builder errors from various endpoint types convert to CoreError::Builder
+        use redmine_api::api::issues::ListIssuesBuilderError;
+        let err = ListIssuesBuilderError::ValidationError("test".into());
+        let converted: CoreError = err.into();
+        assert!(matches!(converted, CoreError::Builder(_)));
+        assert!(converted.to_string().contains("Builder error"));
+    }
+
+    #[test]
+    fn test_core_error_source() {
+        let inner = redmine_api::Error::HttpErrorResponse(reqwest::StatusCode::NOT_FOUND);
+        let err = CoreError::RedmineApi(inner);
+        let source = err.source();
+        assert!(source.is_some(), "CoreError should have a source");
+    }
+
+    #[test]
+    fn test_core_error_send_sync() {
+        // CoreError must be Send + Sync for use in async contexts
+        fn assert_send<T: Send>() {}
+        fn assert_sync<T: Sync>() {}
+        assert_send::<CoreError>();
+        assert_sync::<CoreError>();
     }
 }

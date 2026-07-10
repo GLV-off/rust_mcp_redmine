@@ -75,6 +75,10 @@ pub struct CreateIssueArgs {
 pub struct UpdateIssueArgs {
     #[schemars(description = "Issue ID")]
     id: u64,
+    #[schemars(description = "New project ID")]
+    project_id: Option<u64>,
+    #[schemars(description = "New tracker ID")]
+    tracker_id: Option<u64>,
     #[schemars(description = "New subject")]
     subject: Option<String>,
     #[schemars(description = "New description")]
@@ -85,6 +89,8 @@ pub struct UpdateIssueArgs {
     priority_id: Option<u64>,
     #[schemars(description = "New assignee user ID")]
     assigned_to_id: Option<u64>,
+    #[schemars(description = "New parent issue ID")]
+    parent_issue_id: Option<u64>,
     #[schemars(description = "New estimated hours")]
     estimated_hours: Option<f64>,
     #[schemars(description = "Notes to add to the issue")]
@@ -219,11 +225,14 @@ impl RedmineServer {
         self.client
             .update_issue(
                 args.id,
+                args.project_id,
+                args.tracker_id,
                 args.subject.as_deref(),
                 args.description.as_deref(),
                 args.status_id,
                 args.priority_id,
                 args.assigned_to_id,
+                args.parent_issue_id,
                 args.estimated_hours,
                 args.notes.as_deref(),
             )
@@ -404,7 +413,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_issue_args() {
+    fn test_update_issue_args_minimal() {
         let json = serde_json::json!({
             "id": 42,
             "subject": "Updated",
@@ -416,6 +425,38 @@ mod tests {
         assert_eq!(args.notes, Some("Fixed".into()));
         assert!(args.description.is_none());
         assert!(args.status_id.is_none());
+        assert!(args.project_id.is_none());
+        assert!(args.tracker_id.is_none());
+        assert!(args.parent_issue_id.is_none());
+    }
+
+    #[test]
+    fn test_update_issue_args_full() {
+        let json = serde_json::json!({
+            "id": 42,
+            "project_id": 1,
+            "tracker_id": 2,
+            "subject": "Updated",
+            "description": "New desc",
+            "status_id": 3,
+            "priority_id": 4,
+            "assigned_to_id": 5,
+            "parent_issue_id": 6,
+            "estimated_hours": 3.5,
+            "notes": "Fixed"
+        });
+        let args: UpdateIssueArgs = serde_json::from_value(json).unwrap();
+        assert_eq!(args.id, 42);
+        assert_eq!(args.project_id, Some(1));
+        assert_eq!(args.tracker_id, Some(2));
+        assert_eq!(args.subject, Some("Updated".into()));
+        assert_eq!(args.description, Some("New desc".into()));
+        assert_eq!(args.status_id, Some(3));
+        assert_eq!(args.priority_id, Some(4));
+        assert_eq!(args.assigned_to_id, Some(5));
+        assert_eq!(args.parent_issue_id, Some(6));
+        assert_eq!(args.estimated_hours, Some(3.5));
+        assert_eq!(args.notes, Some("Fixed".into()));
     }
 
     #[test]
@@ -474,6 +515,16 @@ mod tests {
         assert_eq!(args.project_id, Some("my-project".into()));
         assert_eq!(args.spent_on, Some("2024-01-15".into()));
         assert_eq!(args.limit, Some(50));
+        assert!(args.offset.is_none());
+    }
+
+    #[test]
+    fn test_list_time_entries_args_defaults() {
+        let json = serde_json::json!({});
+        let args: ListTimeEntriesArgs = serde_json::from_value(json).unwrap();
+        assert!(args.project_id.is_none());
+        assert!(args.spent_on.is_none());
+        assert!(args.limit.is_none());
         assert!(args.offset.is_none());
     }
 

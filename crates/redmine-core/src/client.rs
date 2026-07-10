@@ -23,6 +23,7 @@ impl RedmineClient {
     pub fn new(config: Config) -> Result<Self, CoreError> {
         let client = redmine_api::reqwest::Client::builder()
             .user_agent("redmine-mcp/0.1.0")
+            .no_proxy()
             .build()?;
         let url = Url::parse(&config.redmine_url)?;
         let inner = RedmineAsync::new(client, url, &config.redmine_api_key)?;
@@ -32,6 +33,7 @@ impl RedmineClient {
     pub fn from_env() -> Result<Self, CoreError> {
         let client = redmine_api::reqwest::Client::builder()
             .user_agent("redmine-mcp/0.1.0")
+            .no_proxy()
             .build()?;
         let inner = RedmineAsync::from_env(client)?;
         Ok(Self { inner })
@@ -138,16 +140,25 @@ impl RedmineClient {
     pub async fn update_issue(
         &self,
         id: u64,
+        project_id: Option<u64>,
+        tracker_id: Option<u64>,
         subject: Option<&str>,
         description: Option<&str>,
         status_id: Option<u64>,
         priority_id: Option<u64>,
         assigned_to_id: Option<u64>,
+        parent_issue_id: Option<u64>,
         estimated_hours: Option<f64>,
         notes: Option<&str>,
     ) -> Result<(), CoreError> {
         let mut base = UpdateIssue::builder();
         let builder = base.id(id);
+        if let Some(pid) = project_id {
+            builder.project_id(pid);
+        }
+        if let Some(tid) = tracker_id {
+            builder.tracker_id(tid);
+        }
         if let Some(subj) = subject {
             builder.subject(subj.to_owned());
         }
@@ -162,6 +173,9 @@ impl RedmineClient {
         }
         if let Some(aid) = assigned_to_id {
             builder.assigned_to_id(aid);
+        }
+        if let Some(paid) = parent_issue_id {
+            builder.parent_issue_id(paid);
         }
         if let Some(eh) = estimated_hours {
             builder.estimated_hours(eh);
@@ -313,7 +327,7 @@ impl RedmineClient {
             builder.comments(c.to_owned().into());
         }
         if let Some(so) = spent_on {
-            let date = time::Date::parse(&so, &time::format_description::well_known::Iso8601::DEFAULT)
+            let date = time::Date::parse(so, &time::format_description::well_known::Iso8601::DEFAULT)
                 .map_err(|e| CoreError::TimeParse(so.to_owned(), e))?;
             builder.spent_on(date);
         }
@@ -337,6 +351,8 @@ fn parse_issue_status_filter(s: &str) -> redmine_api::api::issues::IssueStatusFi
             if let Ok(id) = s.parse::<u64>() {
                 redmine_api::api::issues::IssueStatusFilter::TheseStatuses(vec![id])
             } else {
+                // Silently defaults to Open for unknown status strings.
+                // Consider returning Result to surface errors to the caller.
                 redmine_api::api::issues::IssueStatusFilter::Open
             }
         }
@@ -347,3 +363,108 @@ fn parse_date(s: &str) -> Result<time::Date, CoreError> {
     time::Date::parse(s, &time::macros::format_description!("[year]-[month]-[day]"))
         .map_err(|e| CoreError::TimeParse(s.to_owned(), e))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use redmine_api::api::issues::IssueStatusFilter;
+    use redmine_api::api::Endpoint;
+
+    #[test]
+    fn test_parse_issue_status_filter_open() {
+        let result = parse_issue_status_filter("open");
+        assert!(matches!(result, IssueStatusFilter::Open));
+        let result = parse_issue_status_filter("OPEN");
+        assert!(matches!(result, IssueStatusFilter::Open));
+    }
+
+    #[test]
+    fn test_parse_issue_status_filter_closed() {
+        let result = parse_issue_status_filter("closed");
+        assert!(matches!(result, IssueStatusFilter::Closed));
+    }
+
+    #[test]
+    fn test_parse_issue_status_filter_all() {
+        let result = parse_issue_status_filter("all");
+        assert!(matches!(result, IssueStatusFilter::All));
+    }
+
+    #[test]
+    fn test_parse_issue_status_filter_numeric_id() {
+        let result = parse_issue_status_filter("42");
+        assert!(matches!(result, IssueStatusFilter::TheseStatuses(ref ids) if ids == &[42]));
+    }
+
+    #[test]
+    fn test_parse_issue_status_filter_fallback_to_open() {
+        // Unknown strings silently fall back to Open (known limitation)
+        let result = parse_issue_status_filter("unknown_status");
+        assert!(matches!(result, IssueStatusFilter::Open));
+        let result = parse_issue_status_filter("opn"); // typo
+        assert!(matches!(result, IssueStatusFilter::Open));
+    }
+
+    #[test]
+    fn test_parse_issue_status_filter_empty_string() {
+        let result = parse_issue_status_filter("");
+        assert!(matches!(result, IssueStatusFilter::Open));
+    }
+
+    #[test]
+    fn test_parse_date_valid() {
+        let result = parse_date("2024-01-15");
+        assert!(result.is_ok());
+        let date = result.unwrap();
+        assert_eq!(date.year(), 2024);
+        assert_eq!(date.month(), time::Month::January);
+        assert_eq!(date.day(), 15);
+    }
+
+    #[test]
+    fn test_parse_date_invalid_format() {
+        let result = parse_date("2024/01/15");
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), CoreError::TimeParse(..)));
+    }
+
+    #[test]
+    fn test_parse_date_invalid_date() {
+        let result = parse_date("2024-13-01");
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), CoreError::TimeParse(..)));
+    }
+
+    #[test]
+    fn test_parse_date_empty_string() {
+        let result = parse_date("");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_date_february_leap_year() {
+        let result = parse_date("2024-02-29"); // 2024 is a leap year
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_date_february_non_leap_year() {
+        let result = parse_date("2023-02-29"); // 2023 is not a leap year
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_create_issue_builder_no_panics() {
+        // Verify the builder pattern doesn't panic for common configurations
+        let mut base = CreateIssue::builder();
+        let builder = base.project_id(1).subject("test".to_owned());
+        let _endpoint = builder.build().unwrap();
+    }
+
+    #[test]
+    fn test_delete_issue_builder() {
+        let endpoint = DeleteIssue::builder().id(42).build().unwrap();
+        assert_eq!(endpoint.endpoint(), "issues/42.json");
+    }
+}
+
