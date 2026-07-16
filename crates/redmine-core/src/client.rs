@@ -14,12 +14,19 @@ use url::Url;
 use crate::config::Config;
 use crate::error::CoreError;
 
+/// High-level async client for the Redmine REST API.
+///
+/// Wraps [`RedmineAsync`] and exposes type-safe methods for all supported
+/// API operations. All methods return JSON strings suitable for MCP tool output.
+///
+/// Cloning is cheap (uses `Arc` internally).
 #[derive(Clone)]
 pub struct RedmineClient {
     inner: Arc<RedmineAsync>,
 }
 
 impl RedmineClient {
+    /// Create a new client from an explicit [`Config`].
     pub fn new(config: Config) -> Result<Self, CoreError> {
         let client = redmine_api::reqwest::Client::builder()
             .user_agent("redmine-mcp/0.1.0")
@@ -30,6 +37,8 @@ impl RedmineClient {
         Ok(Self { inner })
     }
 
+    /// Create a new client from environment variables
+    /// (`REDMINE_URL`, `REDMINE_API_KEY`).
     pub fn from_env() -> Result<Self, CoreError> {
         let client = redmine_api::reqwest::Client::builder()
             .user_agent("redmine-mcp/0.1.0")
@@ -39,6 +48,9 @@ impl RedmineClient {
         Ok(Self { inner })
     }
 
+    /// List issues with optional filters.
+    ///
+    /// Returns a JSON string with `total_count` and `issues` array.
     pub async fn list_issues(
         &self,
         project_id: Option<u64>,
@@ -80,6 +92,9 @@ impl RedmineClient {
         .map_err(CoreError::from)
     }
 
+    /// Get a single issue by ID.
+    ///
+    /// Returns a JSON string with the full issue object.
     pub async fn get_issue(&self, id: u64) -> Result<String, CoreError> {
         let endpoint = GetIssue::builder().id(id).build()?;
         let IssueWrapper { issue } = self
@@ -90,6 +105,10 @@ impl RedmineClient {
         serde_json::to_string_pretty(&issue).map_err(CoreError::from)
     }
 
+    /// Create a new issue.
+    ///
+    /// Only `project_id` and `subject` are required. Returns the created issue as JSON.
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_issue(
         &self,
         project_id: u64,
@@ -137,6 +156,11 @@ impl RedmineClient {
         serde_json::to_string_pretty(&issue).map_err(CoreError::from)
     }
 
+    /// Update an existing issue.
+    ///
+    /// All parameter fields are optional — only provided values are changed.
+    /// Returns `Ok(())` on success, with no response body.
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_issue(
         &self,
         id: u64,
@@ -192,6 +216,9 @@ impl RedmineClient {
         Ok(())
     }
 
+    /// Delete an issue by ID.
+    ///
+    /// Returns `Ok(())` on success, with no response body.
     pub async fn delete_issue(&self, id: u64) -> Result<(), CoreError> {
         let endpoint = DeleteIssue::builder().id(id).build()?;
         self.inner
@@ -201,6 +228,9 @@ impl RedmineClient {
         Ok(())
     }
 
+    /// List all projects with pagination.
+    ///
+    /// Returns a JSON string with `total_count` and `projects` array.
     pub async fn list_projects(
         &self,
         limit: u64,
@@ -224,6 +254,9 @@ impl RedmineClient {
         .map_err(CoreError::from)
     }
 
+    /// Get a single project by ID.
+    ///
+    /// Returns a JSON string with the full project object.
     pub async fn get_project(&self, id: u64) -> Result<String, CoreError> {
         let endpoint = GetProject::builder()
             .project_id_or_name(id.to_string())
@@ -236,6 +269,9 @@ impl RedmineClient {
         serde_json::to_string_pretty(&project).map_err(CoreError::from)
     }
 
+    /// List all users with pagination.
+    ///
+    /// Returns a JSON string with `total_count` and `users` array.
     pub async fn list_users(
         &self,
         limit: u64,
@@ -259,6 +295,9 @@ impl RedmineClient {
         .map_err(CoreError::from)
     }
 
+    /// Get a single user by ID.
+    ///
+    /// Returns a JSON string with the full user object.
     pub async fn get_user(&self, id: u64) -> Result<String, CoreError> {
         let endpoint = GetUser::builder().id(id).build()?;
         let UserWrapper { user } = self
@@ -269,6 +308,9 @@ impl RedmineClient {
         serde_json::to_string_pretty(&user).map_err(CoreError::from)
     }
 
+    /// List time entries with optional filters.
+    ///
+    /// Returns a JSON string with `total_count` and `time_entries` array.
     pub async fn list_time_entries(
         &self,
         project_id: Option<String>,
@@ -303,6 +345,10 @@ impl RedmineClient {
         .map_err(CoreError::from)
     }
 
+    /// Create a new time entry.
+    ///
+    /// `hours` is required. Either `issue_id` or `project_id` must be provided.
+    /// Returns the created time entry as JSON.
     pub async fn create_time_entry(
         &self,
         issue_id: Option<u64>,
@@ -342,6 +388,10 @@ impl RedmineClient {
     }
 }
 
+/// Parse a status filter string into a `redmine_api::api::issues::IssueStatusFilter`.
+///
+/// Accepted values: `"open"`, `"closed"`, `"all"`, or a numeric status ID.
+/// Unknown values silently fall back to `Open`.
 fn parse_issue_status_filter(s: &str) -> redmine_api::api::issues::IssueStatusFilter {
     match s.to_lowercase().as_str() {
         "open" => redmine_api::api::issues::IssueStatusFilter::Open,
@@ -359,6 +409,7 @@ fn parse_issue_status_filter(s: &str) -> redmine_api::api::issues::IssueStatusFi
     }
 }
 
+/// Parse a date string in `YYYY-MM-DD` format into a [`time::Date`].
 fn parse_date(s: &str) -> Result<time::Date, CoreError> {
     time::Date::parse(s, &time::macros::format_description!("[year]-[month]-[day]"))
         .map_err(|e| CoreError::TimeParse(s.to_owned(), e))

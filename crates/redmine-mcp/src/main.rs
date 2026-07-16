@@ -1,3 +1,9 @@
+//! Redmine MCP server binary.
+//!
+//! Parses configuration from CLI/environment, creates a [`RedmineClient`],
+//! wraps it in a [`RedmineServer`](tools::RedmineServer) with all MCP tools,
+//! and serves over stdio transport.
+
 use redmine_core::client::RedmineClient;
 use redmine_core::config::Config;
 use rmcp::transport::stdio;

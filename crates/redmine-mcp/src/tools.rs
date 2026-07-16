@@ -12,12 +12,17 @@ use serde_json::json;
 
 use redmine_core::client::RedmineClient;
 
+/// MCP server that exposes Redmine operations as tools.
+///
+/// Each method annotated with `#[tool(..)]` becomes an MCP tool callable
+/// by any MCP-compatible client (e.g. AI assistants).
 #[derive(Clone)]
 pub struct RedmineServer {
     client: Arc<RedmineClient>,
 }
 
 impl RedmineServer {
+    /// Create a new server wrapping the given [`RedmineClient`].
     pub fn new(client: RedmineClient) -> Self {
         Self {
             client: Arc::new(client),
@@ -27,6 +32,7 @@ impl RedmineServer {
 
 // ── Issues ──
 
+/// Arguments for the `redmine_list_issues` tool.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ListIssuesArgs {
     #[schemars(description = "Project ID to filter by")]
@@ -43,12 +49,14 @@ pub struct ListIssuesArgs {
     offset: Option<u64>,
 }
 
+/// Arguments for the `redmine_get_issue` tool.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct GetIssueArgs {
     #[schemars(description = "Issue ID")]
     id: u64,
 }
 
+/// Arguments for the `redmine_create_issue` tool.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct CreateIssueArgs {
     #[schemars(description = "Project ID")]
@@ -71,6 +79,7 @@ pub struct CreateIssueArgs {
     estimated_hours: Option<f64>,
 }
 
+/// Arguments for the `redmine_update_issue` tool.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct UpdateIssueArgs {
     #[schemars(description = "Issue ID")]
@@ -97,6 +106,7 @@ pub struct UpdateIssueArgs {
     notes: Option<String>,
 }
 
+/// Arguments for the `redmine_delete_issue` tool.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DeleteIssueArgs {
     #[schemars(description = "Issue ID to delete")]
@@ -105,6 +115,7 @@ pub struct DeleteIssueArgs {
 
 // ── Projects ──
 
+/// Arguments for the `redmine_list_projects` tool.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ListProjectsArgs {
     #[schemars(description = "Maximum results per page (max 100, default 25)")]
@@ -113,6 +124,7 @@ pub struct ListProjectsArgs {
     offset: Option<u64>,
 }
 
+/// Arguments for the `redmine_get_project` tool.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct GetProjectArgs {
     #[schemars(description = "Project ID")]
@@ -121,6 +133,7 @@ pub struct GetProjectArgs {
 
 // ── Users ──
 
+/// Arguments for the `redmine_list_users` tool.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ListUsersArgs {
     #[schemars(description = "Maximum results per page (max 100, default 25)")]
@@ -129,6 +142,7 @@ pub struct ListUsersArgs {
     offset: Option<u64>,
 }
 
+/// Arguments for the `redmine_get_user` tool.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct GetUserArgs {
     #[schemars(description = "User ID")]
@@ -137,6 +151,7 @@ pub struct GetUserArgs {
 
 // ── Time Entries ──
 
+/// Arguments for the `redmine_list_time_entries` tool.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ListTimeEntriesArgs {
     #[schemars(description = "Filter by project ID or identifier")]
@@ -149,6 +164,7 @@ pub struct ListTimeEntriesArgs {
     offset: Option<u64>,
 }
 
+/// Arguments for the `redmine_create_time_entry` tool.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct CreateTimeEntryArgs {
     #[schemars(description = "Issue ID to log time against")]

@@ -1,9 +1,14 @@
 use clap::Parser;
 use std::fmt;
 
+/// CLI and environment configuration for the Redmine MCP server.
+///
+/// Fields can be set via command-line arguments or environment variables.
+/// Supports `.env` file loading via [`parse`](Self::parse).
 #[derive(Clone, Parser)]
 #[command(name = "redmine-mcp", about = "MCP server for Redmine")]
 pub struct Config {
+    /// Redmine instance URL (e.g. `https://redmine.example.com`).
     #[arg(
         long,
         env = "REDMINE_URL",
@@ -11,6 +16,7 @@ pub struct Config {
     )]
     pub redmine_url: String,
 
+    /// Redmine API key for authentication.
     #[arg(
         long,
         env = "REDMINE_API_KEY",
@@ -19,6 +25,7 @@ pub struct Config {
     pub redmine_api_key: String,
 }
 
+/// Custom [`Debug`] implementation that redacts the API key.
 impl fmt::Debug for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Config")
@@ -29,12 +36,15 @@ impl fmt::Debug for Config {
 }
 
 impl Config {
+    /// Parse configuration from CLI args, falling back to environment variables.
+    ///
+    /// Loads `.env` file if present, then parses `clap` arguments.
     pub fn parse() -> Self {
         let _ = dotenvy::dotenv();
         <Self as Parser>::parse()
     }
 
-    /// Parse from a custom iterator of arguments (useful for testing).
+    /// Parse configuration from a custom iterator of arguments (useful for testing).
     pub fn parse_from<I>(args: I) -> Self
     where
         I: IntoIterator,

@@ -1,3 +1,9 @@
+//! Data types for Redmine API parameter structs.
+//!
+//! This crate provides serializable parameter structs used by `redmine-core`
+//! to pass filters and payload data to the Redmine REST API endpoints.
+//! All structs derive `JsonSchema` for use in MCP tool argument schemas.
+
 pub mod issues;
 pub mod projects;
 pub mod users;

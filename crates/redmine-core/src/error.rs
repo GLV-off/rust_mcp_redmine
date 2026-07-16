@@ -1,25 +1,37 @@
 use thiserror::Error;
 
+/// Unified error type for all `redmine-core` operations.
+///
+/// Wraps errors from the Redmine API, HTTP client, serialization,
+/// configuration, and builder validation into a single type.
+/// All builder error types are automatically converted via [`From`] impls.
 #[derive(Debug, Error)]
 pub enum CoreError {
+    /// Error from the Redmine API (HTTP error responses, network issues, etc.).
     #[error("Redmine API error: {0}")]
     RedmineApi(#[from] redmine_api::Error),
 
+    /// Error from the reqwest HTTP client.
     #[error("Reqwest error: {0}")]
     Reqwest(#[from] reqwest::Error),
 
+    /// JSON serialization/deserialization error.
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
+    /// URL parse error.
     #[error("URL parse error: {0}")]
     Url(#[from] url::ParseError),
 
+    /// Configuration error (e.g. missing or invalid settings).
     #[error("Config error: {0}")]
     Config(String),
 
+    /// Builder validation error from the `redmine-api` endpoint builders.
     #[error("Builder error: {0}")]
     Builder(String),
 
+    /// Date/time parse error for `YYYY-MM-DD` formatted strings.
     #[error("Time parse error: {0}")]
     TimeParse(String, #[source] time::error::Parse),
 }
