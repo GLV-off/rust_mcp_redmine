@@ -12,6 +12,11 @@ cp .env.example .env
 cargo run --release
 ```
 
+```bat
+copy .env.example .env
+cargo run --release
+```
+
 ## Документация
 
 Полная документация — в папке [doc/](doc/index.md):
